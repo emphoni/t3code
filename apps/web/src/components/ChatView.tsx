@@ -3507,14 +3507,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
         />
       </header>
 
-      {/* Error banner */}
-      <ProviderHealthBanner status={activeProviderStatus} />
-      <ThreadErrorBanner
-        error={activeThread.error}
-        onDismiss={() => setThreadError(activeThread.id, null)}
-      />
-      {/* Main content area with optional plan sidebar */}
-      <div className="flex min-h-0 min-w-0 flex-1">
+      {/* Content area with inverse border radius mask */}
+      <div className="chat-content-area relative flex min-h-0 min-w-0 flex-1 flex-col bg-card/50">
+        {/* Error banner */}
+        <ProviderHealthBanner status={activeProviderStatus} />
+        <ThreadErrorBanner
+          error={activeThread.error}
+          onDismiss={() => setThreadError(activeThread.id, null)}
+        />
+        {/* Main content area with optional plan sidebar */}
+        <div className="flex min-h-0 min-w-0 flex-1">
         {/* Chat column */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Messages Wrapper */}
@@ -4136,6 +4138,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
           />
         );
       })()}
+
+      </div>
+      {/* end chat-content-area */}
 
       {expandedImage && expandedImageItem && (
         <div

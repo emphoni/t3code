@@ -118,7 +118,7 @@ function ChatRouteLayout() {
       <Sidebar
         side="left"
         collapsible="offcanvas"
-        className="border-r border-border bg-card text-foreground"
+        className="border-border bg-card text-foreground"
         resizable={{
           minWidth: THREAD_SIDEBAR_MIN_WIDTH,
           shouldAcceptWidth: ({ nextWidth, wrapper }) =>
@@ -129,7 +129,11 @@ function ChatRouteLayout() {
         <ThreadSidebar />
         <SidebarRail />
       </Sidebar>
-      <Outlet />
+      <div className="flex min-h-0 min-w-0 flex-1 bg-card pl-1">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background ">
+          <Outlet />
+        </div>
+      </div>
     </SidebarProvider>
   );
 }
