@@ -94,6 +94,10 @@ const DIFF_PANEL_UNSAFE_CSS = `
   color: color-mix(in srgb, var(--foreground) 84%, var(--primary)) !important;
   text-decoration-color: currentColor;
 }
+
+[data-separator='line-info']:first-child {
+  margin-block-start: 8px !important;
+}
 `;
 
 type RenderablePatch =
@@ -402,10 +406,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     <>
       <div className="relative min-w-0 flex-1 [-webkit-app-region:no-drag]">
         {canScrollTurnStripLeft && (
-          <div className="pointer-events-none absolute inset-y-0 left-8 z-10 w-7 bg-linear-to-r from-card to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-14 bg-linear-to-r from-background from-50% to-transparent" />
         )}
         {canScrollTurnStripRight && (
-          <div className="pointer-events-none absolute inset-y-0 right-8 z-10 w-7 bg-linear-to-l from-card to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-14 bg-linear-to-l from-background from-50% to-transparent" />
         )}
         <button
           type="button"

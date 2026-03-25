@@ -4,7 +4,7 @@ import {
   type ResolvedKeybindingsConfig,
   type ThreadId,
 } from "@t3tools/contracts";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import GitActionsControl from "../GitActionsControl";
 import { DiffIcon } from "lucide-react";
 import { Badge } from "../ui/badge";
@@ -32,6 +32,7 @@ interface ChatHeaderProps {
   onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
   onDeleteProjectScript: (scriptId: string) => Promise<void>;
   onToggleDiff: () => void;
+  branchToolbar?: ReactNode;
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -52,6 +53,7 @@ export const ChatHeader = memo(function ChatHeader({
   onUpdateProjectScript,
   onDeleteProjectScript,
   onToggleDiff,
+  branchToolbar,
 }: ChatHeaderProps) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -73,6 +75,7 @@ export const ChatHeader = memo(function ChatHeader({
             No Git
           </Badge>
         )}
+        {branchToolbar}
       </div>
       <div className="@container/header-actions flex min-w-0 flex-1 items-center justify-end gap-2 @sm/header-actions:gap-3">
         {activeProjectScripts && (

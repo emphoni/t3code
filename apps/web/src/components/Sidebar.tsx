@@ -1,6 +1,7 @@
 import {
   ArrowLeftIcon,
-  ChevronRightIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
   FolderIcon,
   GitPullRequestIcon,
   PlusIcon,
@@ -99,10 +100,13 @@ function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diff / 60_000);
   if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} ${days === 1 ? "day" : "days"} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} ${months === 1 ? "month" : "months"} ago`;
 }
 
 interface TerminalStatusIndicator {
@@ -1381,33 +1385,41 @@ export default function Sidebar() {
                                 });
                               }}
                             >
-                              {!project.expanded && projectStatus ? (
-                                <span
-                                  aria-hidden="true"
-                                  title={projectStatus.label}
-                                  className={`-ml-0.5 relative inline-flex size-3.5 shrink-0 items-center justify-center ${projectStatus.colorClass}`}
-                                >
-                                  <span className="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover/project-header:opacity-0">
-                                    <span
-                                      className={`size-[9px] rounded-full ${projectStatus.dotClass} ${
-                                        projectStatus.pulse ? "animate-pulse" : ""
-                                      }`}
-                                    />
-                                  </span>
-                                  <ChevronRightIcon className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100" />
-                                </span>
-                              ) : (
-                                <ChevronRightIcon
-                                  className={`-ml-0.5 size-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-150 ${
-                                    project.expanded ? "rotate-90" : ""
-                                  }`}
-                                />
-                              )}
                               <ProjectFavicon cwd={project.cwd} />
                               <span className="flex-1 truncate text-xs font-medium text-foreground/90">
                                 {project.name}
                               </span>
                             </SidebarMenuButton>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <SidebarMenuAction
+                                    render={
+                                      <button
+                                        type="button"
+                                        aria-label={project.expanded ? `Collapse ${project.name}` : `Expand ${project.name}`}
+                                      />
+                                    }
+                                    showOnHover
+                                    className="top-1 right-7 size-5 rounded-md p-0 text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      handleProjectTitleClick(event as unknown as MouseEvent<HTMLButtonElement>, project.id);
+                                    }}
+                                  >
+                                    {project.expanded ? (
+                                      <ChevronsDownUpIcon className="size-3" strokeWidth={2.5} />
+                                    ) : (
+                                      <ChevronsUpDownIcon className="size-3" strokeWidth={2.5} />
+                                    )}
+                                  </SidebarMenuAction>
+                                }
+                              />
+                              <TooltipPopup side="top">
+                                {project.expanded ? "Collapse" : "Expand"}
+                              </TooltipPopup>
+                            </Tooltip>
                             <Tooltip>
                               <TooltipTrigger
                                 render={
@@ -1444,7 +1456,7 @@ export default function Sidebar() {
                           </div>
 
                           <CollapsibleContent keepMounted>
-                            <SidebarMenuSub className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 py-0">
+                            <SidebarMenuSub className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 pt-1 pb-0">
                               {visibleThreads.map((thread) => {
                                 const isActive = routeThreadId === thread.id;
                                 const isSelected = selectedThreadIds.has(thread.id);
@@ -1549,9 +1561,6 @@ export default function Sidebar() {
                                                 threadStatus.pulse ? "animate-pulse" : ""
                                               }`}
                                             />
-                                            <span className="hidden md:inline">
-                                              {threadStatus.label}
-                                            </span>
                                           </span>
                                         )}
                                         {renamingThreadId === thread.id ? (
@@ -1676,7 +1685,6 @@ export default function Sidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarSeparator />
       <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
