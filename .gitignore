@@ -2,6 +2,7 @@ node_modules
 .bun
 .turbo
 .DS_Store
+.t3-opensoftware
 *.log
 *.tsbuildinfo
 apps/*/dist
