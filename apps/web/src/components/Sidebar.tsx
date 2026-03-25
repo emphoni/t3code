@@ -976,9 +976,12 @@ export default function Sidebar() {
       if (selectedThreadIds.size > 0) {
         clearSelection();
       }
-      toggleProject(projectId);
+      void navigate({
+        to: "/project/$projectId",
+        params: { projectId },
+      });
     },
-    [clearSelection, selectedThreadIds.size, toggleProject],
+    [clearSelection, selectedThreadIds.size, navigate],
   );
 
   const handleProjectTitleKeyDown = useCallback(
@@ -988,9 +991,12 @@ export default function Sidebar() {
       if (dragInProgressRef.current) {
         return;
       }
-      toggleProject(projectId);
+      void navigate({
+        to: "/project/$projectId",
+        params: { projectId },
+      });
     },
-    [toggleProject],
+    [navigate],
   );
 
   useEffect(() => {
@@ -1405,7 +1411,7 @@ export default function Sidebar() {
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
-                                      handleProjectTitleClick(event as unknown as MouseEvent<HTMLButtonElement>, project.id);
+                                      toggleProject(project.id);
                                     }}
                                   >
                                     {project.expanded ? (

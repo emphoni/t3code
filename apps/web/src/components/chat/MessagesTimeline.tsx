@@ -337,7 +337,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           const groupLabel = onlyToolEntries ? "Tool calls" : "Work log";
 
           return (
-            <div className="overflow-hidden rounded-2xl border border-border/45 bg-card/25">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card/25">
               {showHeader && (
                 <div className="flex items-center justify-between gap-2 border-b border-border/45 bg-muted/40 px-4 py-2">
                   <p className="text-xs font-medium text-muted-foreground/70">
@@ -512,7 +512,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                           </Button>
                         </div>
                       </div>
-                      <div className="px-3 py-2">
+                      <div className="px-1 py-2">
                       <ChangedFilesTree
                         key={`changed-files-tree:${turnSummary.turnId}`}
                         turnId={turnSummary.turnId}

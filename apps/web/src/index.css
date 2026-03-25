@@ -292,6 +292,45 @@ input {
   left: 0 !important;
 }
 
+/* Inverse border radius mask — creates the "negative radius" curve
+   at the top of the content area, right below the header bar.
+   Two pseudo-elements sit in the top-left and top-right corners and use
+   box-shadow to paint the header's background color into the concave area. */
+.inverse-border-radius-mask {
+  --ibr-size: 12px;
+  border-top-left-radius: var(--ibr-size);
+  border-top-right-radius: var(--ibr-size);
+}
+
+.inverse-border-radius-mask::before,
+.inverse-border-radius-mask::after {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--ibr-size));
+  width: var(--ibr-size);
+  height: var(--ibr-size);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.inverse-border-radius-mask::before {
+  left: 0;
+  background: radial-gradient(
+    circle at 0% 0%,
+    transparent var(--ibr-size),
+    var(--card) calc(var(--ibr-size) + 0.5px)
+  );
+}
+
+.inverse-border-radius-mask::after {
+  right: 0;
+  background: radial-gradient(
+    circle at 100% 0%,
+    transparent var(--ibr-size),
+    var(--card) calc(var(--ibr-size) + 0.5px)
+  );
+}
+
 /* Reasoning select -- clickable label surface */
 label:has(> select#reasoning-effort) {
   position: relative;

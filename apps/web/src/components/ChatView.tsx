@@ -3461,11 +3461,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-card">
       {/* Top bar */}
       <header
         className={cn(
-          "border-b border-border px-3 sm:px-5",
+          "relative z-10 bg-card px-3 sm:px-5",
           isElectron ? "drag-region flex h-[52px] items-center" : "py-2 sm:py-3",
         )}
       >
@@ -3508,7 +3508,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       </header>
 
       {/* Content area with inverse border radius mask */}
-      <div className="chat-content-area relative flex min-h-0 min-w-0 flex-1 flex-col bg-card/50">
+      <div className="inverse-border-radius-mask relative flex min-h-0 min-w-0 flex-1 flex-col bg-background/50">
         {/* Error banner */}
         <ProviderHealthBanner status={activeProviderStatus} />
         <ThreadErrorBanner
