@@ -46,6 +46,7 @@ function makeState(thread: Thread): AppState {
       },
     ],
     threads: [thread],
+    tasks: [],
     threadsHydrated: true,
   };
 }
@@ -90,6 +91,7 @@ function makeReadModel(thread: OrchestrationReadModel["threads"][number]): Orche
       },
     ],
     threads: [thread],
+    tasks: [],
   };
 }
 
@@ -181,6 +183,7 @@ describe("store pure functions", () => {
         },
       ],
       threads: [],
+      tasks: [],
       threadsHydrated: true,
     };
 
@@ -250,6 +253,7 @@ describe("store read model sync", () => {
         },
       ],
       threads: [],
+      tasks: [],
       threadsHydrated: true,
     };
     const readModel: OrchestrationReadModel = {
@@ -273,6 +277,7 @@ describe("store read model sync", () => {
         }),
       ],
       threads: [],
+      tasks: [],
     };
 
     const next = syncServerReadModel(initialState, readModel);

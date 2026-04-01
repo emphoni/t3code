@@ -85,6 +85,7 @@ const readModel: OrchestrationReadModel = {
       deletedAt: null,
     },
   ],
+  tasks: [],
 };
 
 const messageSendCommand: OrchestrationCommand = {

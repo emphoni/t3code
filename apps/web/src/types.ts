@@ -6,12 +6,15 @@ import type {
   ProjectScript as ContractProjectScript,
   ThreadId,
   ProjectId,
+  TaskId,
   TurnId,
   MessageId,
   CheckpointRef,
   ProviderKind,
   ProviderInteractionMode,
   RuntimeMode,
+  TaskStatus,
+  TaskPriority,
 } from "@t3tools/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
@@ -104,6 +107,19 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+}
+
+export interface Task {
+  id: TaskId;
+  projectId: ProjectId;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
 }
 
 export interface ThreadSession {

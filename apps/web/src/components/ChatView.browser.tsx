@@ -256,6 +256,7 @@ function createSnapshotForTargetUser(options: {
         },
       },
     ],
+    tasks: [],
     updatedAt: NOW_ISO,
   };
 }

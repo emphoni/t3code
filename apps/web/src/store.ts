@@ -12,7 +12,7 @@ import {
   resolveModelSlugForProvider,
 } from "@t3tools/shared/model";
 import { create } from "zustand";
-import { type ChatMessage, type Project, type Thread } from "./types";
+import { type ChatMessage, type Project, type Task, type Thread } from "./types";
 import { Debouncer } from "@tanstack/react-pacer";
 
 // ── State ────────────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ import { Debouncer } from "@tanstack/react-pacer";
 export interface AppState {
   projects: Project[];
   threads: Thread[];
+  tasks: Task[];
   threadsHydrated: boolean;
 }
 
@@ -39,6 +40,7 @@ const LEGACY_PERSISTED_STATE_KEYS = [
 const initialState: AppState = {
   projects: [],
   threads: [],
+  tasks: [],
   threadsHydrated: false,
 };
 const persistedExpandedProjectCwds = new Set<string>();
@@ -320,10 +322,26 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
         activities: thread.activities.map((activity) => ({ ...activity })),
       };
     });
+  const tasks: Task[] = (readModel.tasks ?? [])
+    .filter((task) => task.deletedAt === null)
+    .map((task) => ({
+      id: task.id,
+      projectId: task.projectId,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      completedAt: task.completedAt,
+    }));
+
   return {
     ...state,
     projects,
     threads,
+    tasks,
     threadsHydrated: true,
   };
 }

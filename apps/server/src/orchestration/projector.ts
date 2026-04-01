@@ -1,4 +1,9 @@
-import type { OrchestrationEvent, OrchestrationReadModel, ThreadId } from "@t3tools/contracts";
+import type {
+  OrchestrationEvent,
+  OrchestrationReadModel,
+  OrchestrationTask,
+  ThreadId,
+} from "@t3tools/contracts";
 import {
   OrchestrationCheckpointSummary,
   OrchestrationMessage,
@@ -13,6 +18,9 @@ import {
   ProjectCreatedPayload,
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
+  TaskCreatedPayload,
+  TaskDeletedPayload,
+  TaskUpdatedPayload,
   ThreadActivityAppendedPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
@@ -158,6 +166,7 @@ export function createEmptyReadModel(nowIso: string): OrchestrationReadModel {
     snapshotSequence: 0,
     projects: [],
     threads: [],
+    tasks: [],
     updatedAt: nowIso,
   };
 }
@@ -619,6 +628,76 @@ export function projectEvent(
             }),
           };
         }),
+      );
+
+    case "task.created":
+      return decodeForEvent(TaskCreatedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => {
+          const existing = nextBase.tasks.find((entry) => entry.id === payload.taskId);
+          const nextTask: OrchestrationTask = {
+            id: payload.taskId,
+            projectId: payload.projectId,
+            title: payload.title,
+            description: payload.description,
+            status: payload.status,
+            priority: payload.priority,
+            dueDate: payload.dueDate,
+            createdAt: payload.createdAt,
+            updatedAt: payload.updatedAt,
+            completedAt: null,
+            deletedAt: null,
+          };
+
+          return {
+            ...nextBase,
+            tasks: existing
+              ? nextBase.tasks.map((entry) =>
+                  entry.id === payload.taskId ? nextTask : entry,
+                )
+              : [...nextBase.tasks, nextTask],
+          };
+        }),
+      );
+
+    case "task.updated":
+      return decodeForEvent(TaskUpdatedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          tasks: nextBase.tasks.map((task) =>
+            task.id === payload.taskId
+              ? {
+                  ...task,
+                  ...(payload.title !== undefined ? { title: payload.title } : {}),
+                  ...(payload.description !== undefined
+                    ? { description: payload.description }
+                    : {}),
+                  ...(payload.status !== undefined ? { status: payload.status } : {}),
+                  ...(payload.priority !== undefined ? { priority: payload.priority } : {}),
+                  ...(payload.dueDate !== undefined ? { dueDate: payload.dueDate } : {}),
+                  ...(payload.completedAt !== undefined
+                    ? { completedAt: payload.completedAt }
+                    : {}),
+                  updatedAt: payload.updatedAt,
+                }
+              : task,
+          ),
+        })),
+      );
+
+    case "task.deleted":
+      return decodeForEvent(TaskDeletedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          tasks: nextBase.tasks.map((task) =>
+            task.id === payload.taskId
+              ? {
+                  ...task,
+                  deletedAt: payload.deletedAt,
+                  updatedAt: payload.deletedAt,
+                }
+              : task,
+          ),
+        })),
       );
 
     default:

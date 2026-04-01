@@ -9,6 +9,8 @@ import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
   requireProject,
   requireProjectAbsent,
+  requireTask,
+  requireTaskAbsent,
   requireThread,
   requireThreadAbsent,
 } from "./commandInvariants.ts";
@@ -627,6 +629,95 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           activity: command.activity,
+        },
+      };
+    }
+
+    case "task.create": {
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: command.projectId,
+      });
+      yield* requireTaskAbsent({
+        readModel,
+        command,
+        taskId: command.taskId,
+      });
+
+      return {
+        ...withEventBase({
+          aggregateKind: "task",
+          aggregateId: command.taskId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "task.created",
+        payload: {
+          taskId: command.taskId,
+          projectId: command.projectId,
+          title: command.title,
+          description: command.description ?? null,
+          status: "todo" as const,
+          priority: command.priority ?? ("medium" as const),
+          dueDate: command.dueDate ?? null,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
+    case "task.update": {
+      const task = yield* requireTask({
+        readModel,
+        command,
+        taskId: command.taskId,
+      });
+      const occurredAt = nowIso();
+      const newStatus = command.status ?? task.status;
+      const wasCompleted = task.status === "done";
+      const isNowCompleted = newStatus === "done";
+      const completedAt = isNowCompleted && !wasCompleted ? occurredAt : isNowCompleted ? task.completedAt : null;
+
+      return {
+        ...withEventBase({
+          aggregateKind: "task",
+          aggregateId: command.taskId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "task.updated",
+        payload: {
+          taskId: command.taskId,
+          ...(command.title !== undefined ? { title: command.title } : {}),
+          ...(command.description !== undefined ? { description: command.description } : {}),
+          ...(command.status !== undefined ? { status: command.status } : {}),
+          ...(command.priority !== undefined ? { priority: command.priority } : {}),
+          ...(command.dueDate !== undefined ? { dueDate: command.dueDate } : {}),
+          completedAt,
+          updatedAt: occurredAt,
+        },
+      };
+    }
+
+    case "task.delete": {
+      yield* requireTask({
+        readModel,
+        command,
+        taskId: command.taskId,
+      });
+      const occurredAt = nowIso();
+      return {
+        ...withEventBase({
+          aggregateKind: "task",
+          aggregateId: command.taskId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "task.deleted",
+        payload: {
+          taskId: command.taskId,
+          deletedAt: occurredAt,
         },
       };
     }
