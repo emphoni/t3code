@@ -37,13 +37,9 @@ const ThinkingIndicator = forwardRef<HTMLDivElement, ThinkingIndicatorProps>(
     }, [words.length]);
 
     // Find the longest word for invisible spacer
-    const longestWord = words.reduce((a, b) =>
-      a.length >= b.length ? a : b,
-    );
+    const longestWord = words.reduce((a, b) => (a.length >= b.length ? a : b));
 
-    const displayText = elapsed
-      ? `${words[index]} for ${elapsed}`
-      : `${words[index]}...`;
+    const displayText = elapsed ? `${words[index]} for ${elapsed}` : `${words[index]}...`;
 
     return (
       <div
@@ -78,18 +74,13 @@ const ThinkingIndicator = forwardRef<HTMLDivElement, ThinkingIndicatorProps>(
         </svg>
         <span className="inline-grid text-[11px] overflow-hidden">
           {/* Invisible spacer for stable width */}
-          <span
-            className="col-start-1 row-start-1 invisible shimmer-text"
-            aria-hidden="true"
-          >
+          <span className="col-start-1 row-start-1 invisible shimmer-text" aria-hidden="true">
             {longestWord} for 99m 59s
           </span>
           <span
             className={cn(
               "col-start-1 row-start-1 shimmer-text transition-all duration-200",
-              animating
-                ? "opacity-0 -translate-y-2"
-                : "opacity-100 translate-y-0",
+              animating ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0",
             )}
           >
             {displayText}

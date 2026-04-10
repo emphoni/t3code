@@ -1,4 +1,3 @@
-import { FolderIcon } from "lucide-react";
 import { useState } from "react";
 
 function getServerHttpOrigin(): string {
@@ -10,7 +9,6 @@ function getServerHttpOrigin(): string {
       : envUrl && envUrl.length > 0
         ? envUrl
         : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${window.location.port}`;
-  // Parse to extract just the origin, dropping path/query (e.g. ?token=…)
   const httpUrl = wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
   try {
     return new URL(httpUrl).origin;
@@ -29,21 +27,18 @@ export function ProjectFavicon({ cwd, className }: { cwd: string; className?: st
     loadedProjectFaviconSrcs.has(src) ? "loaded" : "loading",
   );
 
+  if (status === "error") return null;
+
   return (
-    <>
-      {status !== "loaded" ? (
-        <FolderIcon className={`size-3.5 shrink-0 text-muted-foreground/50 ${className ?? ""}`} />
-      ) : null}
-      <img
-        src={src}
-        alt=""
-        className={`size-3.5 shrink-0 rounded-sm object-contain ${status === "loaded" ? "" : "hidden"} ${className ?? ""}`}
-        onLoad={() => {
-          loadedProjectFaviconSrcs.add(src);
-          setStatus("loaded");
-        }}
-        onError={() => setStatus("error")}
-      />
-    </>
+    <img
+      src={src}
+      alt=""
+      className={`size-3.5 shrink-0 rounded-sm object-contain ${status === "loaded" ? "" : "hidden"} ${className ?? ""}`}
+      onLoad={() => {
+        loadedProjectFaviconSrcs.add(src);
+        setStatus("loaded");
+      }}
+      onError={() => setStatus("error")}
+    />
   );
 }

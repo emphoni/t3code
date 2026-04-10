@@ -22,79 +22,203 @@ type ProjectionProjectDbRow = typeof ProjectionProjectDbRow.Type;
 
 const makeProjectionProjectRepository = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
+  const projectColumns = yield* sql<{ readonly name: string }>`
+    PRAGMA table_info(projection_projects)
+  `;
+  const hasDefaultModelSelectionColumn = projectColumns.some(
+    (column) => column.name === "default_model_selection_json",
+  );
+  const hasLegacyDefaultModelColumn = projectColumns.some((column) => column.name === "default_model");
 
   const upsertProjectionProjectRow = SqlSchema.void({
     Request: ProjectionProject,
     execute: (row) =>
-      sql`
-        INSERT INTO projection_projects (
-          project_id,
-          title,
-          workspace_root,
-          default_model_selection_json,
-          scripts_json,
-          created_at,
-          updated_at,
-          deleted_at
-        )
-        VALUES (
-          ${row.projectId},
-          ${row.title},
-          ${row.workspaceRoot},
-          ${row.defaultModelSelection !== null ? JSON.stringify(row.defaultModelSelection) : null},
-          ${JSON.stringify(row.scripts)},
-          ${row.createdAt},
-          ${row.updatedAt},
-          ${row.deletedAt}
-        )
-        ON CONFLICT (project_id)
-        DO UPDATE SET
-          title = excluded.title,
-          workspace_root = excluded.workspace_root,
-          default_model_selection_json = excluded.default_model_selection_json,
-          scripts_json = excluded.scripts_json,
-          created_at = excluded.created_at,
-          updated_at = excluded.updated_at,
-          deleted_at = excluded.deleted_at
-      `,
+      hasDefaultModelSelectionColumn
+        ? hasLegacyDefaultModelColumn
+          ? sql`
+              INSERT INTO projection_projects (
+                project_id,
+                title,
+                workspace_root,
+                default_model_selection_json,
+                default_model,
+                scripts_json,
+                created_at,
+                updated_at,
+                deleted_at
+              )
+              VALUES (
+                ${row.projectId},
+                ${row.title},
+                ${row.workspaceRoot},
+                ${row.defaultModelSelection !== null ? JSON.stringify(row.defaultModelSelection) : null},
+                ${row.defaultModelSelection?.model ?? null},
+                ${JSON.stringify(row.scripts)},
+                ${row.createdAt},
+                ${row.updatedAt},
+                ${row.deletedAt}
+              )
+              ON CONFLICT (project_id)
+              DO UPDATE SET
+                title = excluded.title,
+                workspace_root = excluded.workspace_root,
+                default_model_selection_json = excluded.default_model_selection_json,
+                default_model = excluded.default_model,
+                scripts_json = excluded.scripts_json,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at,
+                deleted_at = excluded.deleted_at
+            `
+          : sql`
+              INSERT INTO projection_projects (
+                project_id,
+                title,
+                workspace_root,
+                default_model_selection_json,
+                scripts_json,
+                created_at,
+                updated_at,
+                deleted_at
+              )
+              VALUES (
+                ${row.projectId},
+                ${row.title},
+                ${row.workspaceRoot},
+                ${row.defaultModelSelection !== null ? JSON.stringify(row.defaultModelSelection) : null},
+                ${JSON.stringify(row.scripts)},
+                ${row.createdAt},
+                ${row.updatedAt},
+                ${row.deletedAt}
+              )
+              ON CONFLICT (project_id)
+              DO UPDATE SET
+                title = excluded.title,
+                workspace_root = excluded.workspace_root,
+                default_model_selection_json = excluded.default_model_selection_json,
+                scripts_json = excluded.scripts_json,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at,
+                deleted_at = excluded.deleted_at
+            `
+        : sql`
+            INSERT INTO projection_projects (
+              project_id,
+              title,
+              workspace_root,
+              default_model,
+              scripts_json,
+              created_at,
+              updated_at,
+              deleted_at
+            )
+            VALUES (
+              ${row.projectId},
+              ${row.title},
+              ${row.workspaceRoot},
+              ${row.defaultModelSelection?.model ?? null},
+              ${JSON.stringify(row.scripts)},
+              ${row.createdAt},
+              ${row.updatedAt},
+              ${row.deletedAt}
+            )
+            ON CONFLICT (project_id)
+            DO UPDATE SET
+              title = excluded.title,
+              workspace_root = excluded.workspace_root,
+              default_model = excluded.default_model,
+              scripts_json = excluded.scripts_json,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at,
+              deleted_at = excluded.deleted_at
+          `,
   });
 
   const getProjectionProjectRow = SqlSchema.findOneOption({
     Request: GetProjectionProjectInput,
     Result: ProjectionProjectDbRow,
     execute: ({ projectId }) =>
-      sql`
-        SELECT
-          project_id AS "projectId",
-          title,
-          workspace_root AS "workspaceRoot",
-          default_model_selection_json AS "defaultModelSelection",
-          scripts_json AS "scripts",
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          deleted_at AS "deletedAt"
-        FROM projection_projects
-        WHERE project_id = ${projectId}
-      `,
+      hasDefaultModelSelectionColumn
+        ? sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              default_model_selection_json AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            WHERE project_id = ${projectId}
+          `
+        : sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              CASE
+                WHEN default_model IS NULL THEN NULL
+                ELSE json_object(
+                  'provider',
+                  CASE
+                    WHEN lower(default_model) LIKE '%claude%' THEN 'claudeAgent'
+                    ELSE 'codex'
+                  END,
+                  'model',
+                  default_model
+                )
+              END AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            WHERE project_id = ${projectId}
+          `,
   });
 
   const listProjectionProjectRows = SqlSchema.findAll({
     Request: Schema.Void,
     Result: ProjectionProjectDbRow,
     execute: () =>
-      sql`
-        SELECT
-          project_id AS "projectId",
-          title,
-          workspace_root AS "workspaceRoot",
-          default_model_selection_json AS "defaultModelSelection",
-          scripts_json AS "scripts",
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          deleted_at AS "deletedAt"
-        FROM projection_projects
-        ORDER BY created_at ASC, project_id ASC
-      `,
+      hasDefaultModelSelectionColumn
+        ? sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              default_model_selection_json AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            ORDER BY created_at ASC, project_id ASC
+          `
+        : sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              CASE
+                WHEN default_model IS NULL THEN NULL
+                ELSE json_object(
+                  'provider',
+                  CASE
+                    WHEN lower(default_model) LIKE '%claude%' THEN 'claudeAgent'
+                    ELSE 'codex'
+                  END,
+                  'model',
+                  default_model
+                )
+              END AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            ORDER BY created_at ASC, project_id ASC
+          `,
   });
 
   const deleteProjectionProjectRow = SqlSchema.void({

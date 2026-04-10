@@ -62,7 +62,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarSeparator />
       <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>

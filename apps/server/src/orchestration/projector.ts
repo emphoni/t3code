@@ -678,9 +678,7 @@ export function projectEvent(
           return {
             ...nextBase,
             tasks: existing
-              ? nextBase.tasks.map((entry) =>
-                  entry.id === payload.taskId ? nextTask : entry,
-                )
+              ? nextBase.tasks.map((entry) => (entry.id === payload.taskId ? nextTask : entry))
               : [...nextBase.tasks, nextTask],
           };
         }),

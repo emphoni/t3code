@@ -1,6 +1,8 @@
 import {
   ArchiveIcon,
+  ArrowUpDownIcon,
   ArrowLeftIcon,
+  ChevronRightIcon,
   ChevronsDownUpIcon,
   ChevronsUpDownIcon,
   FolderIcon,
@@ -278,7 +280,6 @@ function ThreadStatusLabel({
           status.pulse ? "animate-pulse" : ""
         }`}
       />
-      <span className="hidden md:inline">{status.label}</span>
     </span>
   );
 }
@@ -483,6 +484,13 @@ export default function Sidebar() {
     strict: false,
     select: (params) => (params.threadId ? ThreadId.makeUnsafe(params.threadId) : null),
   });
+  const routeProjectId = useParams({
+    strict: false,
+    select: (params) =>
+      "projectId" in params && params.projectId
+        ? ProjectId.makeUnsafe(params.projectId as string)
+        : null,
+  });
   const { data: keybindings = EMPTY_KEYBINDINGS } = useQuery({
     ...serverConfigQueryOptions(),
     select: (config) => config.keybindings,
@@ -507,6 +515,11 @@ export default function Sidebar() {
   const suppressProjectClickAfterDragRef = useRef(false);
   const suppressProjectClickForContextMenuRef = useRef(false);
   const [desktopUpdateState, setDesktopUpdateState] = useState<DesktopUpdateState | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    if (!isElectron) return false;
+    const bridge = window.desktopBridge;
+    return typeof bridge?.isFullscreen === "function" ? bridge.isFullscreen() : false;
+  });
   const selectedThreadIds = useThreadSelectionStore((s) => s.selectedThreadIds);
   const toggleThreadSelection = useThreadSelectionStore((s) => s.toggleThread);
   const rangeSelectTo = useThreadSelectionStore((s) => s.rangeSelectTo);
@@ -1384,6 +1397,11 @@ export default function Sidebar() {
       shouldShowThreadPanel,
       isThreadListExpanded,
     } = renderedProject;
+    const isActiveProject =
+      routeProjectId === project.id ||
+      (routeThreadId
+        ? projectThreads.some((thread) => thread.id === routeThreadId)
+        : false);
     const renderThreadRow = (thread: (typeof projectThreads)[number]) => {
       const isActive = routeThreadId === thread.id;
       const isSelected = selectedThreadIds.has(thread.id);
@@ -1610,7 +1628,7 @@ export default function Sidebar() {
                 <span className={threadMetaClassName}>
                   {showThreadJumpHints && jumpLabel ? (
                     <span
-                      className="inline-flex h-5 items-center rounded-full border border-border/80 bg-background/90 px-1.5 font-mono text-[10px] font-medium tracking-tight text-foreground shadow-sm"
+                      className="inline-flex h-5 items-center rounded border border-border/80 bg-background/90 px-1.5 text-[10px] font-medium tracking-tight text-muted-foreground shadow-sm"
                       title={jumpLabel}
                     >
                       {jumpLabel}
@@ -1640,6 +1658,7 @@ export default function Sidebar() {
           <SidebarMenuButton
             ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
             size="sm"
+            isActive={isActiveProject}
             className={`gap-2 px-2 py-1.5 text-left hover:bg-accent group-hover/project-header:bg-accent group-hover/project-header:text-sidebar-accent-foreground ${
               isManualProjectSorting ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
             }`}
@@ -1657,29 +1676,39 @@ export default function Sidebar() {
               });
             }}
           >
-            {!project.expanded && projectStatus ? (
-              <span
-                aria-hidden="true"
-                title={projectStatus.label}
-                className={`-ml-0.5 relative inline-flex size-3.5 shrink-0 items-center justify-center ${projectStatus.colorClass}`}
-              >
-                <span className="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover/project-header:opacity-0">
-                  <span
-                    className={`size-[9px] rounded-full ${projectStatus.dotClass} ${
-                      projectStatus.pulse ? "animate-pulse" : ""
-                    }`}
-                  />
+            <span
+              role="button"
+              tabIndex={-1}
+              className="-ml-0.5 inline-flex size-4 shrink-0 items-center justify-center"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleProject(project.id);
+              }}
+            >
+              {!project.expanded && projectStatus ? (
+                <span
+                  aria-hidden="true"
+                  title={projectStatus.label}
+                  className={`relative inline-flex size-3.5 items-center justify-center ${projectStatus.colorClass}`}
+                >
+                  <span className="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover/project-header:opacity-0">
+                    <span
+                      className={`size-[9px] rounded-full ${projectStatus.dotClass} ${
+                        projectStatus.pulse ? "animate-pulse" : ""
+                      }`}
+                    />
+                  </span>
+                  <ChevronRightIcon className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100" />
                 </span>
-                <ChevronRightIcon className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100" />
-              </span>
-            ) : (
-              <ChevronRightIcon
-                className={`-ml-0.5 size-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-150 ${
-                  project.expanded ? "rotate-90" : ""
-                }`}
-              />
-            )}
-            <ProjectFavicon cwd={project.cwd} />
+              ) : (
+                <ChevronRightIcon
+                  className={`size-3.5 text-muted-foreground/70 transition-transform duration-150 ${
+                    project.expanded ? "rotate-90" : ""
+                  }`}
+                />
+              )}
+            </span>
             <span className="flex-1 truncate text-xs font-medium text-foreground/90">
               {project.name}
             </span>
@@ -1719,7 +1748,7 @@ export default function Sidebar() {
 
         <SidebarMenuSub
           ref={attachThreadListAutoAnimateRef}
-          className="mx-1 my-0 w-full translate-x-0 gap-0.5 overflow-hidden px-1.5 py-0"
+          className="mx-1 my-0 w-full translate-x-0 gap-0.5 overflow-hidden px-1.5 pt-1 pb-0"
         >
           {shouldShowThreadPanel && showEmptyThreadState ? (
             <SidebarMenuSubItem className="w-full" data-thread-selection-safe>
@@ -1864,6 +1893,13 @@ export default function Sidebar() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isElectron) return;
+    const bridge = window.desktopBridge;
+    if (!bridge || typeof bridge.onFullscreenChange !== "function") return;
+    return bridge.onFullscreenChange(setIsFullscreen);
+  }, []);
+
   const desktopUpdateButtonDisabled = isDesktopUpdateButtonDisabled(desktopUpdateState);
   const desktopUpdateButtonAction = desktopUpdateState
     ? resolveDesktopUpdateButtonAction(desktopUpdateState)
@@ -1985,7 +2021,7 @@ export default function Sidebar() {
   return (
     <>
       {isElectron ? (
-        <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[90px]">
+        <SidebarHeader className={`drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 ${isFullscreen ? "pl-4" : "pl-[90px]"}`}>
           {wordmark}
         </SidebarHeader>
       ) : (
@@ -2160,14 +2196,13 @@ export default function Sidebar() {
             </SidebarGroup>
           </SidebarContent>
 
-          <SidebarSeparator />
           <SidebarFooter className="p-2">
             <SidebarUpdatePill />
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="sm"
-                  className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                  className="!h-auto !rounded-md gap-2 px-3.5 py-2.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
                   onClick={() => void navigate({ to: "/settings" })}
                 >
                   <SettingsIcon className="size-3.5" />

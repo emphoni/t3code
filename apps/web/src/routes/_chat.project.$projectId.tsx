@@ -60,14 +60,20 @@ function ProjectFavicon({ cwd, className }: { cwd: string; className?: string })
   );
 }
 
-const PRIORITY_CONFIG: Record<TaskPriority, { icon: typeof ArrowUpIcon; label: string; className: string }> = {
+const PRIORITY_CONFIG: Record<
+  TaskPriority,
+  { icon: typeof ArrowUpIcon; label: string; className: string }
+> = {
   urgent: { icon: AlertTriangleIcon, label: "Urgent", className: "text-red-500" },
   high: { icon: ArrowUpIcon, label: "High", className: "text-orange-500" },
   medium: { icon: ArrowRightIcon, label: "Medium", className: "text-yellow-500" },
   low: { icon: ArrowDownIcon, label: "Low", className: "text-blue-500" },
 };
 
-const STATUS_CONFIG: Record<TaskStatus, { icon: typeof CircleIcon; label: string; className: string }> = {
+const STATUS_CONFIG: Record<
+  TaskStatus,
+  { icon: typeof CircleIcon; label: string; className: string }
+> = {
   todo: { icon: CircleIcon, label: "To Do", className: "text-muted-foreground" },
   "in-progress": { icon: CircleDotIcon, label: "In Progress", className: "text-blue-500" },
   done: { icon: CheckCircle2Icon, label: "Done", className: "text-green-500" },
@@ -105,13 +111,7 @@ function TaskStatusButton({ task }: { task: Task }) {
   );
 }
 
-function TaskRow({
-  task,
-  onDelete,
-}: {
-  task: Task;
-  onDelete: (taskId: Task["id"]) => void;
-}) {
+function TaskRow({ task, onDelete }: { task: Task; onDelete: (taskId: Task["id"]) => void }) {
   const priorityConfig = PRIORITY_CONFIG[task.priority];
   const PriorityIcon = priorityConfig.icon;
 
@@ -126,17 +126,13 @@ function TaskRow({
       <div className="min-w-0 flex-1">
         <p
           className={`text-sm font-medium ${
-            task.status === "done"
-              ? "text-muted-foreground line-through"
-              : "text-foreground"
+            task.status === "done" ? "text-muted-foreground line-through" : "text-foreground"
           }`}
         >
           {task.title}
         </p>
         {task.description && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {task.description}
-          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{task.description}</p>
         )}
       </div>
 
@@ -166,13 +162,7 @@ function TaskRow({
   );
 }
 
-function CreateTaskForm({
-  projectId,
-  onCreated,
-}: {
-  projectId: ProjectId;
-  onCreated: () => void;
-}) {
+function CreateTaskForm({ projectId, onCreated }: { projectId: ProjectId; onCreated: () => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
@@ -282,10 +272,7 @@ function ProjectDetailRouteView() {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [taskFilter, setTaskFilter] = useState<"all" | "active" | "done">("all");
 
-  const project = useMemo(
-    () => projects.find((p) => p.id === projectId),
-    [projects, projectId],
-  );
+  const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId]);
   const threads = useMemo(
     () => allThreads.filter((t) => t.projectId === projectId),
     [allThreads, projectId],
@@ -432,10 +419,7 @@ function ProjectDetailRouteView() {
               {/* Create task form */}
               {showCreateTask && (
                 <div className="mb-4 rounded-lg border border-dashed border-border bg-background p-3">
-                  <CreateTaskForm
-                    projectId={projectId}
-                    onCreated={() => {}}
-                  />
+                  <CreateTaskForm projectId={projectId} onCreated={() => {}} />
                 </div>
               )}
 
@@ -491,7 +475,7 @@ function ProjectDetailRouteView() {
               </div>
               <div className="rounded-lg border border-border bg-background px-3 py-2">
                 <code className="text-sm text-foreground">
-                  {project.model || "Not set (inherits global default)"}
+                  {project.defaultModelSelection?.model || "Not set (inherits global default)"}
                 </code>
               </div>
             </section>
@@ -515,7 +499,9 @@ function ProjectDetailRouteView() {
                         <span className="text-base">{scriptIconMap[script.icon] ?? "\u25B6"}</span>
                         <div>
                           <p className="text-sm font-medium text-foreground">{script.name}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{script.command}</p>
+                          <p className="font-mono text-xs text-muted-foreground">
+                            {script.command}
+                          </p>
                         </div>
                       </div>
                       {script.runOnWorktreeCreate && (

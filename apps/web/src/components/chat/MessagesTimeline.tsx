@@ -519,14 +519,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                         </div>
                       </div>
                       <div className="px-1 py-2">
-                      <ChangedFilesTree
-                        key={`changed-files-tree:${turnSummary.turnId}`}
-                        turnId={turnSummary.turnId}
-                        files={checkpointFiles}
-                        allDirectoriesExpanded={allDirectoriesExpanded}
-                        resolvedTheme={resolvedTheme}
-                        onOpenTurnDiff={onOpenTurnDiff}
-                      />
+                        <ChangedFilesTree
+                          key={`changed-files-tree:${turnSummary.turnId}`}
+                          turnId={turnSummary.turnId}
+                          files={checkpointFiles}
+                          allDirectoriesExpanded={allDirectoriesExpanded}
+                          resolvedTheme={resolvedTheme}
+                          onOpenTurnDiff={onOpenTurnDiff}
+                        />
                       </div>
                     </div>
                   );
@@ -557,11 +557,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
       {row.kind === "working" && (
         <ThinkingIndicator
-          elapsed={
-            row.createdAt
-              ? formatWorkingTimer(row.createdAt, nowIso) ?? "0s"
-              : null
-          }
+          elapsed={row.createdAt ? (formatWorkingTimer(row.createdAt, nowIso) ?? "0s") : null}
         />
       )}
     </div>

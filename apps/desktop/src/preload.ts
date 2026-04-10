@@ -13,6 +13,8 @@ const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const FULLSCREEN_CHANGE_CHANNEL = "desktop:fullscreen-change";
+const IS_FULLSCREEN_CHANNEL = "desktop:is-fullscreen";
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   getWsUrl: () => {
@@ -48,6 +50,21 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.on(UPDATE_STATE_CHANNEL, wrappedListener);
     return () => {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
+    };
+  },
+  isFullscreen: () => {
+    const result = ipcRenderer.sendSync(IS_FULLSCREEN_CHANNEL);
+    return typeof result === "boolean" ? result : false;
+  },
+  onFullscreenChange: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, isFullscreen: unknown) => {
+      if (typeof isFullscreen !== "boolean") return;
+      listener(isFullscreen);
+    };
+
+    ipcRenderer.on(FULLSCREEN_CHANGE_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(FULLSCREEN_CHANGE_CHANNEL, wrappedListener);
     };
   },
 } satisfies DesktopBridge);

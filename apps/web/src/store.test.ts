@@ -365,6 +365,7 @@ describe("incremental orchestration updates", () => {
         },
       ],
       threads: [],
+      tasks: [],
       bootstrapComplete: true,
     };
 

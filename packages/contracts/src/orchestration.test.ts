@@ -120,6 +120,20 @@ it.effect("decodes historical project.created payloads with a default provider",
   }),
 );
 
+it.effect("decodes historical project.created payloads without defaultModelSelection", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeProjectCreatedPayload({
+      projectId: "project-1",
+      title: "Project Title",
+      workspaceRoot: "/tmp/workspace",
+      scripts: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.defaultModelSelection, null);
+  }),
+);
+
 it.effect("decodes project.meta-updated payloads with explicit default provider", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeProjectMetaUpdatedPayload({
@@ -214,6 +228,27 @@ it.effect("decodes thread.created runtime mode for historical events", () =>
 
     assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
     assert.strictEqual(parsed.modelSelection.provider, "codex");
+  }),
+);
+
+it.effect("decodes thread.created payloads without modelSelection", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadCreatedPayload({
+      threadId: "thread-1",
+      projectId: "project-1",
+      title: "Thread title",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(parsed.modelSelection, {
+      provider: "codex",
+      model: "gpt-5.4",
+    });
+    assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
   }),
 );
 

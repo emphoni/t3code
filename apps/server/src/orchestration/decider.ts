@@ -723,7 +723,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       const newStatus = command.status ?? task.status;
       const wasCompleted = task.status === "done";
       const isNowCompleted = newStatus === "done";
-      const completedAt = isNowCompleted && !wasCompleted ? occurredAt : isNowCompleted ? task.completedAt : null;
+      const completedAt =
+        isNowCompleted && !wasCompleted ? occurredAt : isNowCompleted ? task.completedAt : null;
 
       return {
         ...withEventBase({

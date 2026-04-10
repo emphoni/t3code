@@ -5,7 +5,7 @@
 @theme inline {
   --animate-skeleton: skeleton 2s -1s infinite linear;
   --font-heading: "Inter", system-ui, sans-serif;
-  --font-sans: "Nunito Sans", system-ui, sans-serif;
+  --font-sans: "Noto Serif", "Nunito Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   --font-display: "Instrument Serif", serif;
   --color-warning-foreground: var(--warning-foreground);
@@ -79,7 +79,7 @@
 
 :root {
   color-scheme: light;
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --background: #f7f7f5;
   --foreground: oklch(0.147 0.004 49.3);
   --card: oklch(1 0 0);
@@ -200,7 +200,8 @@ pre,
 code,
 textarea,
 input {
-  font-family: "JetBrains Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-family:
+    "JetBrains Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 /* Thinking indicator shimmer */

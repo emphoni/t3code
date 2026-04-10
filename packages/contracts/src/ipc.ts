@@ -122,6 +122,8 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  isFullscreen: () => boolean;
+  onFullscreenChange: (listener: (isFullscreen: boolean) => void) => () => void;
 }
 
 export interface NativeApi {

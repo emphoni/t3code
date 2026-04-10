@@ -138,48 +138,112 @@ function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: st
 
 const makeProjectionSnapshotQuery = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
+  const projectColumns = yield* sql<{ readonly name: string }>`
+    PRAGMA table_info(projection_projects)
+  `;
+  const hasProjectDefaultModelSelectionColumn = projectColumns.some(
+    (column) => column.name === "default_model_selection_json",
+  );
+  const threadColumns = yield* sql<{ readonly name: string }>`
+    PRAGMA table_info(projection_threads)
+  `;
+  const hasThreadModelSelectionColumn = threadColumns.some(
+    (column) => column.name === "model_selection_json",
+  );
 
   const listProjectRows = SqlSchema.findAll({
     Request: Schema.Void,
     Result: ProjectionProjectDbRowSchema,
     execute: () =>
-      sql`
-        SELECT
-          project_id AS "projectId",
-          title,
-          workspace_root AS "workspaceRoot",
-          default_model_selection_json AS "defaultModelSelection",
-          scripts_json AS "scripts",
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          deleted_at AS "deletedAt"
-        FROM projection_projects
-        ORDER BY created_at ASC, project_id ASC
-      `,
+      hasProjectDefaultModelSelectionColumn
+        ? sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              default_model_selection_json AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            ORDER BY created_at ASC, project_id ASC
+          `
+        : sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              CASE
+                WHEN default_model IS NULL THEN NULL
+                ELSE json_object(
+                  'provider',
+                  CASE
+                    WHEN lower(default_model) LIKE '%claude%' THEN 'claudeAgent'
+                    ELSE 'codex'
+                  END,
+                  'model',
+                  default_model
+                )
+              END AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            ORDER BY created_at ASC, project_id ASC
+          `,
   });
 
   const listThreadRows = SqlSchema.findAll({
     Request: Schema.Void,
     Result: ProjectionThreadDbRowSchema,
     execute: () =>
-      sql`
-        SELECT
-          thread_id AS "threadId",
-          project_id AS "projectId",
-          title,
-          model_selection_json AS "modelSelection",
-          runtime_mode AS "runtimeMode",
-          interaction_mode AS "interactionMode",
-          branch,
-          worktree_path AS "worktreePath",
-          latest_turn_id AS "latestTurnId",
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          archived_at AS "archivedAt",
-          deleted_at AS "deletedAt"
-        FROM projection_threads
-        ORDER BY created_at ASC, thread_id ASC
-      `,
+      hasThreadModelSelectionColumn
+        ? sql`
+            SELECT
+              thread_id AS "threadId",
+              project_id AS "projectId",
+              title,
+              model_selection_json AS "modelSelection",
+              runtime_mode AS "runtimeMode",
+              interaction_mode AS "interactionMode",
+              branch,
+              worktree_path AS "worktreePath",
+              latest_turn_id AS "latestTurnId",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              archived_at AS "archivedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_threads
+            ORDER BY created_at ASC, thread_id ASC
+          `
+        : sql`
+            SELECT
+              thread_id AS "threadId",
+              project_id AS "projectId",
+              title,
+              json_object(
+                'provider',
+                CASE
+                  WHEN lower(model) LIKE '%claude%' THEN 'claudeAgent'
+                  ELSE 'codex'
+                END,
+                'model',
+                model
+              ) AS "modelSelection",
+              runtime_mode AS "runtimeMode",
+              interaction_mode AS "interactionMode",
+              branch,
+              worktree_path AS "worktreePath",
+              latest_turn_id AS "latestTurnId",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              archived_at AS "archivedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_threads
+            ORDER BY created_at ASC, thread_id ASC
+          `,
   });
 
   const listThreadMessageRows = SqlSchema.findAll({

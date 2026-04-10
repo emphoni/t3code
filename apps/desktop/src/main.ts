@@ -1139,6 +1139,12 @@ function registerIpcHandlers(): void {
     event.returnValue = backendWsUrl;
   });
 
+  ipcMain.removeAllListeners("desktop:is-fullscreen");
+  ipcMain.on("desktop:is-fullscreen", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    event.returnValue = win?.isFullScreen() ?? false;
+  });
+
   ipcMain.removeHandler(PICK_FOLDER_CHANNEL);
   ipcMain.handle(PICK_FOLDER_CHANNEL, async () => {
     const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
@@ -1322,6 +1328,13 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  window.on("enter-full-screen", () => {
+    window.webContents.send("desktop:fullscreen-change", true);
+  });
+  window.on("leave-full-screen", () => {
+    window.webContents.send("desktop:fullscreen-change", false);
   });
 
   window.webContents.on("context-menu", (event, params) => {

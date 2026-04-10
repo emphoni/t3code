@@ -6,6 +6,7 @@ import {
   LoaderIcon,
   PlusIcon,
   RefreshCwIcon,
+  RotateCcwIcon,
   Undo2Icon,
   XIcon,
 } from "lucide-react";
@@ -510,6 +511,34 @@ export function useSettingsRestore(onRestored?: () => void) {
     changedSettingLabels,
     restoreDefaults,
   };
+}
+
+function RestoreDefaultsSection() {
+  const { changedSettingLabels, restoreDefaults } = useSettingsRestore();
+
+  return (
+    <SettingsSection title="Reset">
+      <SettingsRow
+        title="Restore defaults"
+        description={
+          changedSettingLabels.length > 0
+            ? `Changed: ${changedSettingLabels.join(", ")}`
+            : "All settings are at their default values."
+        }
+        control={
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={changedSettingLabels.length === 0}
+            onClick={() => void restoreDefaults()}
+          >
+            <RotateCcwIcon className="size-3.5" />
+            Restore
+          </Button>
+        }
+      />
+    </SettingsSection>
+  );
 }
 
 export function GeneralSettingsPanel() {
@@ -1399,6 +1428,8 @@ export function GeneralSettingsPanel() {
           }
         />
       </SettingsSection>
+
+      <RestoreDefaultsSection />
 
       <SettingsSection title="About">
         {isElectron ? (
