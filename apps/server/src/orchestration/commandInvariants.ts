@@ -2,8 +2,10 @@ import type {
   OrchestrationCommand,
   OrchestrationProject,
   OrchestrationReadModel,
+  OrchestrationTask,
   OrchestrationThread,
   ProjectId,
+  TaskId,
   ThreadId,
 } from "@t3tools/contracts";
 import { Effect } from "effect";
@@ -88,6 +90,44 @@ export function requireThread(input: {
   );
 }
 
+export function requireThreadArchived(input: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: OrchestrationCommand;
+  readonly threadId: ThreadId;
+}): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
+  return requireThread(input).pipe(
+    Effect.flatMap((thread) =>
+      thread.archivedAt !== null
+        ? Effect.succeed(thread)
+        : Effect.fail(
+            invariantError(
+              input.command.type,
+              `Thread '${input.threadId}' is not archived for command '${input.command.type}'.`,
+            ),
+          ),
+    ),
+  );
+}
+
+export function requireThreadNotArchived(input: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: OrchestrationCommand;
+  readonly threadId: ThreadId;
+}): Effect.Effect<OrchestrationThread, OrchestrationCommandInvariantError> {
+  return requireThread(input).pipe(
+    Effect.flatMap((thread) =>
+      thread.archivedAt === null
+        ? Effect.succeed(thread)
+        : Effect.fail(
+            invariantError(
+              input.command.type,
+              `Thread '${input.threadId}' is already archived and cannot handle command '${input.command.type}'.`,
+            ),
+          ),
+    ),
+  );
+}
+
 export function requireThreadAbsent(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;
@@ -100,6 +140,46 @@ export function requireThreadAbsent(input: {
     invariantError(
       input.command.type,
       `Thread '${input.threadId}' already exists and cannot be created twice.`,
+    ),
+  );
+}
+
+export function findTaskById(
+  readModel: OrchestrationReadModel,
+  taskId: TaskId,
+): OrchestrationTask | undefined {
+  return readModel.tasks.find((task) => task.id === taskId);
+}
+
+export function requireTask(input: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: OrchestrationCommand;
+  readonly taskId: TaskId;
+}): Effect.Effect<OrchestrationTask, OrchestrationCommandInvariantError> {
+  const task = findTaskById(input.readModel, input.taskId);
+  if (task) {
+    return Effect.succeed(task);
+  }
+  return Effect.fail(
+    invariantError(
+      input.command.type,
+      `Task '${input.taskId}' does not exist for command '${input.command.type}'.`,
+    ),
+  );
+}
+
+export function requireTaskAbsent(input: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: OrchestrationCommand;
+  readonly taskId: TaskId;
+}): Effect.Effect<void, OrchestrationCommandInvariantError> {
+  if (!findTaskById(input.readModel, input.taskId)) {
+    return Effect.void;
+  }
+  return Effect.fail(
+    invariantError(
+      input.command.type,
+      `Task '${input.taskId}' already exists and cannot be created twice.`,
     ),
   );
 }

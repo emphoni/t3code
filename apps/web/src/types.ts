@@ -1,4 +1,5 @@
 import type {
+  ModelSelection,
   OrchestrationLatestTurn,
   OrchestrationProposedPlanId,
   OrchestrationSessionStatus,
@@ -6,12 +7,15 @@ import type {
   ProjectScript as ContractProjectScript,
   ThreadId,
   ProjectId,
+  TaskId,
   TurnId,
   MessageId,
-  CheckpointRef,
   ProviderKind,
+  CheckpointRef,
   ProviderInteractionMode,
   RuntimeMode,
+  TaskStatus,
+  TaskPriority,
 } from "@t3tools/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
@@ -44,6 +48,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   text: string;
   attachments?: ChatAttachment[];
+  turnId?: TurnId | null;
   createdAt: string;
   completedAt?: string | undefined;
   streaming: boolean;
@@ -80,8 +85,9 @@ export interface Project {
   id: ProjectId;
   name: string;
   cwd: string;
-  model: string;
-  expanded: boolean;
+  defaultModelSelection: ModelSelection | null;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
   scripts: ProjectScript[];
 }
 
@@ -90,7 +96,7 @@ export interface Thread {
   codexThreadId: string | null;
   projectId: ProjectId;
   title: string;
-  model: string;
+  modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
@@ -98,12 +104,27 @@ export interface Thread {
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;
+  archivedAt: string | null;
+  updatedAt?: string | undefined;
   latestTurn: OrchestrationLatestTurn | null;
-  lastVisitedAt?: string | undefined;
+  pendingSourceProposedPlan?: OrchestrationLatestTurn["sourceProposedPlan"];
   branch: string | null;
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+}
+
+export interface Task {
+  id: TaskId;
+  projectId: ProjectId;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
 }
 
 export interface ThreadSession {

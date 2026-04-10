@@ -9,13 +9,15 @@ import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
   requireProject,
   requireProjectAbsent,
+  requireTask,
+  requireTaskAbsent,
   requireThread,
+  requireThreadArchived,
   requireThreadAbsent,
+  requireThreadNotArchived,
 } from "./commandInvariants.ts";
 
 const nowIso = () => new Date().toISOString();
-const DEFAULT_ASSISTANT_DELIVERY_MODE = "buffered" as const;
-
 const defaultMetadata: Omit<OrchestrationEvent, "sequence" | "type" | "payload"> = {
   eventId: crypto.randomUUID() as OrchestrationEvent["eventId"],
   aggregateKind: "thread",
@@ -77,7 +79,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           projectId: command.projectId,
           title: command.title,
           workspaceRoot: command.workspaceRoot,
-          defaultModel: command.defaultModel ?? null,
+          defaultModelSelection: command.defaultModelSelection ?? null,
           scripts: [],
           createdAt: command.createdAt,
           updatedAt: command.createdAt,
@@ -104,7 +106,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           projectId: command.projectId,
           ...(command.title !== undefined ? { title: command.title } : {}),
           ...(command.workspaceRoot !== undefined ? { workspaceRoot: command.workspaceRoot } : {}),
-          ...(command.defaultModel !== undefined ? { defaultModel: command.defaultModel } : {}),
+          ...(command.defaultModelSelection !== undefined
+            ? { defaultModelSelection: command.defaultModelSelection }
+            : {}),
           ...(command.scripts !== undefined ? { scripts: command.scripts } : {}),
           updatedAt: occurredAt,
         },
@@ -156,7 +160,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           threadId: command.threadId,
           projectId: command.projectId,
           title: command.title,
-          model: command.model,
+          modelSelection: command.modelSelection,
           runtimeMode: command.runtimeMode,
           interactionMode: command.interactionMode,
           branch: command.branch,
@@ -189,6 +193,51 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.archive": {
+      yield* requireThreadNotArchived({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const occurredAt = nowIso();
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.archived",
+        payload: {
+          threadId: command.threadId,
+          archivedAt: occurredAt,
+          updatedAt: occurredAt,
+        },
+      };
+    }
+
+    case "thread.unarchive": {
+      yield* requireThreadArchived({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const occurredAt = nowIso();
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.unarchived",
+        payload: {
+          threadId: command.threadId,
+          updatedAt: occurredAt,
+        },
+      };
+    }
+
     case "thread.meta.update": {
       yield* requireThread({
         readModel,
@@ -207,7 +256,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           ...(command.title !== undefined ? { title: command.title } : {}),
-          ...(command.model !== undefined ? { model: command.model } : {}),
+          ...(command.modelSelection !== undefined
+            ? { modelSelection: command.modelSelection }
+            : {}),
           ...(command.branch !== undefined ? { branch: command.branch } : {}),
           ...(command.worktreePath !== undefined ? { worktreePath: command.worktreePath } : {}),
           updatedAt: occurredAt,
@@ -323,13 +374,10 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.message.messageId,
-          ...(command.provider !== undefined ? { provider: command.provider } : {}),
-          ...(command.model !== undefined ? { model: command.model } : {}),
-          ...(command.modelOptions !== undefined ? { modelOptions: command.modelOptions } : {}),
-          ...(command.providerOptions !== undefined
-            ? { providerOptions: command.providerOptions }
+          ...(command.modelSelection !== undefined
+            ? { modelSelection: command.modelSelection }
             : {}),
-          assistantDeliveryMode: command.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
+          ...(command.titleSeed !== undefined ? { titleSeed: command.titleSeed } : {}),
           runtimeMode: targetThread.runtimeMode,
           interactionMode: targetThread.interactionMode,
           ...(sourceProposedPlan !== undefined ? { sourceProposedPlan } : {}),
@@ -627,6 +675,96 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           activity: command.activity,
+        },
+      };
+    }
+
+    case "task.create": {
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: command.projectId,
+      });
+      yield* requireTaskAbsent({
+        readModel,
+        command,
+        taskId: command.taskId,
+      });
+
+      return {
+        ...withEventBase({
+          aggregateKind: "task",
+          aggregateId: command.taskId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "task.created",
+        payload: {
+          taskId: command.taskId,
+          projectId: command.projectId,
+          title: command.title,
+          description: command.description ?? null,
+          status: "todo" as const,
+          priority: command.priority ?? ("medium" as const),
+          dueDate: command.dueDate ?? null,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+    }
+
+    case "task.update": {
+      const task = yield* requireTask({
+        readModel,
+        command,
+        taskId: command.taskId,
+      });
+      const occurredAt = nowIso();
+      const newStatus = command.status ?? task.status;
+      const wasCompleted = task.status === "done";
+      const isNowCompleted = newStatus === "done";
+      const completedAt =
+        isNowCompleted && !wasCompleted ? occurredAt : isNowCompleted ? task.completedAt : null;
+
+      return {
+        ...withEventBase({
+          aggregateKind: "task",
+          aggregateId: command.taskId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "task.updated",
+        payload: {
+          taskId: command.taskId,
+          ...(command.title !== undefined ? { title: command.title } : {}),
+          ...(command.description !== undefined ? { description: command.description } : {}),
+          ...(command.status !== undefined ? { status: command.status } : {}),
+          ...(command.priority !== undefined ? { priority: command.priority } : {}),
+          ...(command.dueDate !== undefined ? { dueDate: command.dueDate } : {}),
+          completedAt,
+          updatedAt: occurredAt,
+        },
+      };
+    }
+
+    case "task.delete": {
+      yield* requireTask({
+        readModel,
+        command,
+        taskId: command.taskId,
+      });
+      const occurredAt = nowIso();
+      return {
+        ...withEventBase({
+          aggregateKind: "task",
+          aggregateId: command.taskId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "task.deleted",
+        payload: {
+          taskId: command.taskId,
+          deletedAt: occurredAt,
         },
       };
     }

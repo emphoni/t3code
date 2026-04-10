@@ -1,9 +1,9 @@
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
-import { Effect, Layer, Option, Schema, Struct } from "effect";
+import { Effect, Layer, Schema, Struct } from "effect";
 
-import { toPersistenceDecodeError, toPersistenceSqlError } from "../Errors.ts";
-
+import { ModelSelection, ProjectScript } from "@t3tools/contracts";
+import { toPersistenceSqlError } from "../Errors.ts";
 import {
   DeleteProjectionProjectInput,
   GetProjectionProjectInput,
@@ -11,27 +11,96 @@ import {
   ProjectionProjectRepository,
   type ProjectionProjectRepositoryShape,
 } from "../Services/ProjectionProjects.ts";
-import { ProjectScript } from "@t3tools/contracts";
 
-// Makes sure that the scripts are parsed from the JSON string the DB returns
-const ProjectionProjectDbRowSchema = ProjectionProject.mapFields(
-  Struct.assign({ scripts: Schema.fromJsonString(Schema.Array(ProjectScript)) }),
+const ProjectionProjectDbRow = ProjectionProject.mapFields(
+  Struct.assign({
+    defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
+    scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+  }),
 );
-
-function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: string) {
-  return (cause: unknown) =>
-    Schema.isSchemaError(cause)
-      ? toPersistenceDecodeError(decodeOperation)(cause)
-      : toPersistenceSqlError(sqlOperation)(cause);
-}
+type ProjectionProjectDbRow = typeof ProjectionProjectDbRow.Type;
 
 const makeProjectionProjectRepository = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
+  const projectColumns = yield* sql<{ readonly name: string }>`
+    PRAGMA table_info(projection_projects)
+  `;
+  const hasDefaultModelSelectionColumn = projectColumns.some(
+    (column) => column.name === "default_model_selection_json",
+  );
+  const hasLegacyDefaultModelColumn = projectColumns.some((column) => column.name === "default_model");
 
   const upsertProjectionProjectRow = SqlSchema.void({
-    Request: ProjectionProjectDbRowSchema,
+    Request: ProjectionProject,
     execute: (row) =>
-      sql`
+      hasDefaultModelSelectionColumn
+        ? hasLegacyDefaultModelColumn
+          ? sql`
+              INSERT INTO projection_projects (
+                project_id,
+                title,
+                workspace_root,
+                default_model_selection_json,
+                default_model,
+                scripts_json,
+                created_at,
+                updated_at,
+                deleted_at
+              )
+              VALUES (
+                ${row.projectId},
+                ${row.title},
+                ${row.workspaceRoot},
+                ${row.defaultModelSelection !== null ? JSON.stringify(row.defaultModelSelection) : null},
+                ${row.defaultModelSelection?.model ?? null},
+                ${JSON.stringify(row.scripts)},
+                ${row.createdAt},
+                ${row.updatedAt},
+                ${row.deletedAt}
+              )
+              ON CONFLICT (project_id)
+              DO UPDATE SET
+                title = excluded.title,
+                workspace_root = excluded.workspace_root,
+                default_model_selection_json = excluded.default_model_selection_json,
+                default_model = excluded.default_model,
+                scripts_json = excluded.scripts_json,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at,
+                deleted_at = excluded.deleted_at
+            `
+          : sql`
+              INSERT INTO projection_projects (
+                project_id,
+                title,
+                workspace_root,
+                default_model_selection_json,
+                scripts_json,
+                created_at,
+                updated_at,
+                deleted_at
+              )
+              VALUES (
+                ${row.projectId},
+                ${row.title},
+                ${row.workspaceRoot},
+                ${row.defaultModelSelection !== null ? JSON.stringify(row.defaultModelSelection) : null},
+                ${JSON.stringify(row.scripts)},
+                ${row.createdAt},
+                ${row.updatedAt},
+                ${row.deletedAt}
+              )
+              ON CONFLICT (project_id)
+              DO UPDATE SET
+                title = excluded.title,
+                workspace_root = excluded.workspace_root,
+                default_model_selection_json = excluded.default_model_selection_json,
+                scripts_json = excluded.scripts_json,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at,
+                deleted_at = excluded.deleted_at
+            `
+        : sql`
             INSERT INTO projection_projects (
               project_id,
               title,
@@ -46,8 +115,8 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
               ${row.projectId},
               ${row.title},
               ${row.workspaceRoot},
-              ${row.defaultModel},
-              ${row.scripts},
+              ${row.defaultModelSelection?.model ?? null},
+              ${JSON.stringify(row.scripts)},
               ${row.createdAt},
               ${row.updatedAt},
               ${row.deletedAt}
@@ -66,40 +135,90 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
 
   const getProjectionProjectRow = SqlSchema.findOneOption({
     Request: GetProjectionProjectInput,
-    Result: ProjectionProjectDbRowSchema,
+    Result: ProjectionProjectDbRow,
     execute: ({ projectId }) =>
-      sql`
-        SELECT
-          project_id AS "projectId",
-          title,
-          workspace_root AS "workspaceRoot",
-          default_model AS "defaultModel",
-          scripts_json AS "scripts",
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          deleted_at AS "deletedAt"
-        FROM projection_projects
-        WHERE project_id = ${projectId}
-      `,
+      hasDefaultModelSelectionColumn
+        ? sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              default_model_selection_json AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            WHERE project_id = ${projectId}
+          `
+        : sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              CASE
+                WHEN default_model IS NULL THEN NULL
+                ELSE json_object(
+                  'provider',
+                  CASE
+                    WHEN lower(default_model) LIKE '%claude%' THEN 'claudeAgent'
+                    ELSE 'codex'
+                  END,
+                  'model',
+                  default_model
+                )
+              END AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            WHERE project_id = ${projectId}
+          `,
   });
 
   const listProjectionProjectRows = SqlSchema.findAll({
     Request: Schema.Void,
-    Result: ProjectionProjectDbRowSchema,
+    Result: ProjectionProjectDbRow,
     execute: () =>
-      sql`
-        SELECT
-          project_id AS "projectId",
-          title,
-          workspace_root AS "workspaceRoot",
-          default_model AS "defaultModel",
-          scripts_json AS "scripts",
-          created_at AS "createdAt",
-          updated_at AS "updatedAt",
-          deleted_at AS "deletedAt"
-        FROM projection_projects
-        ORDER BY created_at ASC, project_id ASC
-      `,
+      hasDefaultModelSelectionColumn
+        ? sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              default_model_selection_json AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            ORDER BY created_at ASC, project_id ASC
+          `
+        : sql`
+            SELECT
+              project_id AS "projectId",
+              title,
+              workspace_root AS "workspaceRoot",
+              CASE
+                WHEN default_model IS NULL THEN NULL
+                ELSE json_object(
+                  'provider',
+                  CASE
+                    WHEN lower(default_model) LIKE '%claude%' THEN 'claudeAgent'
+                    ELSE 'codex'
+                  END,
+                  'model',
+                  default_model
+                )
+              END AS "defaultModelSelection",
+              scripts_json AS "scripts",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt",
+              deleted_at AS "deletedAt"
+            FROM projection_projects
+            ORDER BY created_at ASC, project_id ASC
+          `,
   });
 
   const deleteProjectionProjectRow = SqlSchema.void({
@@ -113,40 +232,17 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
 
   const upsert: ProjectionProjectRepositoryShape["upsert"] = (row) =>
     upsertProjectionProjectRow(row).pipe(
-      Effect.mapError(
-        toPersistenceSqlOrDecodeError(
-          "ProjectionProjectRepository.upsert:query",
-          "ProjectionProjectRepository.upsert:encodeRequest",
-        ),
-      ),
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.upsert:query")),
     );
 
   const getById: ProjectionProjectRepositoryShape["getById"] = (input) =>
     getProjectionProjectRow(input).pipe(
-      Effect.mapError(
-        toPersistenceSqlOrDecodeError(
-          "ProjectionProjectRepository.getById:query",
-          "ProjectionProjectRepository.getById:decodeRow",
-        ),
-      ),
-      Effect.flatMap((rowOption) =>
-        Option.match(rowOption, {
-          onNone: () => Effect.succeed(Option.none()),
-          onSome: (row) =>
-            Effect.succeed(Option.some(row as Schema.Schema.Type<typeof ProjectionProject>)),
-        }),
-      ),
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.getById:query")),
     );
 
   const listAll: ProjectionProjectRepositoryShape["listAll"] = () =>
     listProjectionProjectRows().pipe(
-      Effect.mapError(
-        toPersistenceSqlOrDecodeError(
-          "ProjectionProjectRepository.listAll:query",
-          "ProjectionProjectRepository.listAll:decodeRows",
-        ),
-      ),
-      Effect.map((rows) => rows as ReadonlyArray<Schema.Schema.Type<typeof ProjectionProject>>),
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.listAll:query")),
     );
 
   const deleteById: ProjectionProjectRepositoryShape["deleteById"] = (input) =>

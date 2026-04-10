@@ -19,6 +19,7 @@ import { AUTO_SCROLL_BOTTOM_THRESHOLD_PX } from "../../chat-scroll";
 import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import ChatMarkdown from "../ChatMarkdown";
+import { ThinkingIndicator } from "../ui/thinking-indicator";
 import {
   BotIcon,
   CheckIcon,
@@ -48,7 +49,7 @@ import {
   type ParsedTerminalContextEntry,
 } from "~/lib/terminalContext";
 import { cn } from "~/lib/utils";
-import { type TimestampFormat } from "../../appSettings";
+import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { formatTimestamp } from "../../timestampFormat";
 import {
   buildInlineTerminalContextText,
@@ -253,7 +254,17 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       if (row.kind === "work") return 112;
       if (row.kind === "proposed-plan") return estimateTimelineProposedPlanHeight(row.proposedPlan);
       if (row.kind === "working") return 40;
-      return estimateTimelineMessageHeight(row.message, { timelineWidthPx });
+      let height = estimateTimelineMessageHeight(row.message, { timelineWidthPx });
+      // Account for the Changed Files tree that renders below assistant messages.
+      if (row.message.role === "assistant") {
+        const turnSummary = turnDiffSummaryByAssistantMessageId.get(row.message.id);
+        if (turnSummary && turnSummary.files.length > 0) {
+          // ~60px header + ~28px per file entry + ~28px per directory
+          const fileCount = turnSummary.files.length;
+          height += 60 + fileCount * 28 + Math.ceil(fileCount / 3) * 28;
+        }
+      }
+      return height;
     },
     measureElement: measureVirtualElement,
     useAnimationFrameWithResizeObserver: true,
@@ -264,9 +275,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     rowVirtualizer.measure();
   }, [rowVirtualizer, timelineWidthPx]);
   useEffect(() => {
-    rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (_item, _delta, instance) => {
+    rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
       const viewportHeight = instance.scrollRect?.height ?? 0;
       const scrollOffset = instance.scrollOffset ?? 0;
+      const itemIntersectsViewport =
+        item.end > scrollOffset && item.start < scrollOffset + viewportHeight;
+      if (itemIntersectsViewport) {
+        return false;
+      }
       const remainingDistance = instance.getTotalSize() - (scrollOffset + viewportHeight);
       return remainingDistance > AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
     };
@@ -326,16 +342,16 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           const groupLabel = onlyToolEntries ? "Tool calls" : "Work log";
 
           return (
-            <div className="rounded-xl border border-border/45 bg-card/25 px-2 py-1.5">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card/25">
               {showHeader && (
-                <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
-                  <p className="text-[9px] uppercase tracking-[0.16em] text-muted-foreground/55">
+                <div className="flex items-center justify-between gap-2 border-b border-border/45 bg-muted/40 px-4 py-2">
+                  <p className="text-xs font-medium text-muted-foreground/70">
                     {groupLabel} ({groupedEntries.length})
                   </p>
                   {hasOverflow && (
                     <button
                       type="button"
-                      className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/55 transition-colors duration-150 hover:text-foreground/75"
+                      className="text-xs text-muted-foreground/55 transition-colors duration-150 hover:text-foreground/75"
                       onClick={() => onToggleWorkGroup(groupId)}
                     >
                       {isExpanded ? "Show less" : `Show ${hiddenCount} more`}
@@ -343,7 +359,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   )}
                 </div>
               )}
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 px-3 py-2">
                 {visibleEntries.map((workEntry) => (
                   <SimpleWorkEntryRow key={`work-row:${workEntry.id}`} workEntry={workEntry} />
                 ))}
@@ -360,53 +376,55 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           const terminalContexts = displayedUserMessage.contexts;
           const canRevertAgentWork = revertTurnCountByUserMessageId.has(row.message.id);
           return (
-            <div className="flex justify-end">
-              <div className="group relative max-w-[80%] rounded-2xl rounded-br-sm border border-border bg-secondary px-4 py-3">
-                {userImages.length > 0 && (
-                  <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
-                    {userImages.map(
-                      (image: NonNullable<TimelineMessage["attachments"]>[number]) => (
-                        <div
-                          key={image.id}
-                          className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
-                        >
-                          {image.previewUrl ? (
-                            <button
-                              type="button"
-                              className="h-full w-full cursor-zoom-in"
-                              aria-label={`Preview ${image.name}`}
-                              onClick={() => {
-                                const preview = buildExpandedImagePreview(userImages, image.id);
-                                if (!preview) return;
-                                onImageExpand(preview);
-                              }}
-                            >
-                              <img
-                                src={image.previewUrl}
-                                alt={image.name}
-                                className="h-full max-h-[220px] w-full object-cover"
-                                onLoad={onTimelineImageLoad}
-                                onError={onTimelineImageLoad}
-                              />
-                            </button>
-                          ) : (
-                            <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[11px] text-muted-foreground/70">
-                              {image.name}
-                            </div>
-                          )}
-                        </div>
-                      ),
-                    )}
-                  </div>
-                )}
-                {(displayedUserMessage.visibleText.trim().length > 0 ||
-                  terminalContexts.length > 0) && (
-                  <UserMessageBody
-                    text={displayedUserMessage.visibleText}
-                    terminalContexts={terminalContexts}
-                  />
-                )}
-                <div className="mt-1.5 flex items-center justify-end gap-2">
+            <div className="group flex justify-end pr-2">
+              <div className="flex max-w-[80%] flex-col items-end gap-1.5">
+                <div className="rounded-2xl bg-card px-5 py-4 ring-1 ring-foreground/10">
+                  {userImages.length > 0 && (
+                    <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
+                      {userImages.map(
+                        (image: NonNullable<TimelineMessage["attachments"]>[number]) => (
+                          <div
+                            key={image.id}
+                            className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
+                          >
+                            {image.previewUrl ? (
+                              <button
+                                type="button"
+                                className="h-full w-full cursor-zoom-in"
+                                aria-label={`Preview ${image.name}`}
+                                onClick={() => {
+                                  const preview = buildExpandedImagePreview(userImages, image.id);
+                                  if (!preview) return;
+                                  onImageExpand(preview);
+                                }}
+                              >
+                                <img
+                                  src={image.previewUrl}
+                                  alt={image.name}
+                                  className="h-full max-h-[220px] w-full object-cover"
+                                  onLoad={onTimelineImageLoad}
+                                  onError={onTimelineImageLoad}
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[11px] text-muted-foreground/70">
+                                {image.name}
+                              </div>
+                            )}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  {(displayedUserMessage.visibleText.trim().length > 0 ||
+                    terminalContexts.length > 0) && (
+                    <UserMessageBody
+                      text={displayedUserMessage.visibleText}
+                      terminalContexts={terminalContexts}
+                    />
+                  )}
+                </div>
+                <div className="flex items-center gap-2 pr-1">
                   <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
                     {displayedUserMessage.copyText && (
                       <MessageCopyButton text={displayedUserMessage.copyText} />
@@ -424,7 +442,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                       </Button>
                     )}
                   </div>
-                  <p className="text-right text-[10px] text-muted-foreground/30">
+                  <p className="text-right text-[11px] text-muted-foreground/50">
                     {formatTimestamp(row.message.createdAt, timestampFormat)}
                   </p>
                 </div>
@@ -442,7 +460,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
               {row.showCompletionDivider && (
                 <div className="my-3 flex items-center gap-3">
                   <span className="h-px flex-1 bg-border" />
-                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80">
+                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground/70">
                     {completionSummary ? `Response • ${completionSummary}` : "Response"}
                   </span>
                   <span className="h-px flex-1 bg-border" />
@@ -464,9 +482,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   const allDirectoriesExpanded =
                     allDirectoriesExpandedByTurnId[turnSummary.turnId] ?? true;
                   return (
-                    <div className="mt-2 rounded-lg border border-border/80 bg-card/45 p-2.5">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/65">
+                    <div className="mt-2 overflow-hidden rounded-2xl border border-border/80 bg-card/45">
+                      <div className="flex items-center justify-between gap-2 border-b border-border/80 bg-muted/40 px-4 py-2">
+                        <p className="text-xs font-medium text-muted-foreground/70">
                           <span>Changed files ({changedFileCountLabel})</span>
                           {hasNonZeroStat(summaryStat) && (
                             <>
@@ -483,6 +501,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                             type="button"
                             size="xs"
                             variant="outline"
+                            data-scroll-anchor-ignore
                             onClick={() => onToggleAllDirectories(turnSummary.turnId)}
                           >
                             {allDirectoriesExpanded ? "Collapse all" : "Expand all"}
@@ -499,18 +518,20 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                           </Button>
                         </div>
                       </div>
-                      <ChangedFilesTree
-                        key={`changed-files-tree:${turnSummary.turnId}`}
-                        turnId={turnSummary.turnId}
-                        files={checkpointFiles}
-                        allDirectoriesExpanded={allDirectoriesExpanded}
-                        resolvedTheme={resolvedTheme}
-                        onOpenTurnDiff={onOpenTurnDiff}
-                      />
+                      <div className="px-1 py-2">
+                        <ChangedFilesTree
+                          key={`changed-files-tree:${turnSummary.turnId}`}
+                          turnId={turnSummary.turnId}
+                          files={checkpointFiles}
+                          allDirectoriesExpanded={allDirectoriesExpanded}
+                          resolvedTheme={resolvedTheme}
+                          onOpenTurnDiff={onOpenTurnDiff}
+                        />
+                      </div>
                     </div>
                   );
                 })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
+                <p className="mt-1.5 text-[11px] text-muted-foreground/50">
                   {formatMessageMeta(
                     row.message.createdAt,
                     row.message.streaming
@@ -535,20 +556,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       )}
 
       {row.kind === "working" && (
-        <div className="py-0.5 pl-1.5">
-          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground/70">
-            <span className="inline-flex items-center gap-[3px]">
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:400ms]" />
-            </span>
-            <span>
-              {row.createdAt
-                ? `Working for ${formatWorkingTimer(row.createdAt, nowIso) ?? "0s"}`
-                : "Working..."}
-            </span>
-          </div>
-        </div>
+        <ThinkingIndicator
+          elapsed={row.createdAt ? (formatWorkingTimer(row.createdAt, nowIso) ?? "0s") : null}
+        />
       )}
     </div>
   );
@@ -720,7 +730,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         }
 
         return (
-          <div className="wrap-break-word whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground">
+          <div className="wrap-break-word whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
             {inlineNodes}
           </div>
         );
@@ -748,7 +758,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
     }
 
     return (
-      <div className="wrap-break-word whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground">
+      <div className="wrap-break-word whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
         {inlineNodes}
       </div>
     );
@@ -759,9 +769,9 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   }
 
   return (
-    <pre className="whitespace-pre-wrap wrap-break-word font-mono text-sm leading-relaxed text-foreground">
+    <div className="whitespace-pre-wrap wrap-break-word font-sans text-sm leading-relaxed text-foreground">
       {props.text}
-    </pre>
+    </div>
   );
 });
 

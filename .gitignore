@@ -2,6 +2,7 @@ node_modules
 .bun
 .turbo
 .DS_Store
+.t3-opensoftware
 *.log
 *.tsbuildinfo
 apps/*/dist
@@ -12,6 +13,7 @@ packages/*/dist
 build/
 .logs/
 release/
+release-mock/
 .t3
 .idea/
 apps/web/.playwright
@@ -19,3 +21,4 @@ apps/web/playwright-report
 apps/web/src/components/__screenshots__
 .vitest-*
 __screenshots__/
+.tanstack

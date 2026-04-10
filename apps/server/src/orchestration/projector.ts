@@ -1,4 +1,9 @@
-import type { OrchestrationEvent, OrchestrationReadModel, ThreadId } from "@t3tools/contracts";
+import type {
+  OrchestrationEvent,
+  OrchestrationReadModel,
+  OrchestrationTask,
+  ThreadId,
+} from "@t3tools/contracts";
 import {
   OrchestrationCheckpointSummary,
   OrchestrationMessage,
@@ -13,13 +18,18 @@ import {
   ProjectCreatedPayload,
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
+  TaskCreatedPayload,
+  TaskDeletedPayload,
+  TaskUpdatedPayload,
   ThreadActivityAppendedPayload,
+  ThreadArchivedPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
   ThreadInteractionModeSetPayload,
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
   ThreadRuntimeModeSetPayload,
+  ThreadUnarchivedPayload,
   ThreadRevertedPayload,
   ThreadSessionSetPayload,
   ThreadTurnDiffCompletedPayload,
@@ -158,6 +168,7 @@ export function createEmptyReadModel(nowIso: string): OrchestrationReadModel {
     snapshotSequence: 0,
     projects: [],
     threads: [],
+    tasks: [],
     updatedAt: nowIso,
   };
 }
@@ -181,7 +192,7 @@ export function projectEvent(
             id: payload.projectId,
             title: payload.title,
             workspaceRoot: payload.workspaceRoot,
-            defaultModel: payload.defaultModel,
+            defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
             createdAt: payload.createdAt,
             updatedAt: payload.updatedAt,
@@ -211,8 +222,8 @@ export function projectEvent(
                   ...(payload.workspaceRoot !== undefined
                     ? { workspaceRoot: payload.workspaceRoot }
                     : {}),
-                  ...(payload.defaultModel !== undefined
-                    ? { defaultModel: payload.defaultModel }
+                  ...(payload.defaultModelSelection !== undefined
+                    ? { defaultModelSelection: payload.defaultModelSelection }
                     : {}),
                   ...(payload.scripts !== undefined ? { scripts: payload.scripts } : {}),
                   updatedAt: payload.updatedAt,
@@ -252,7 +263,7 @@ export function projectEvent(
             id: payload.threadId,
             projectId: payload.projectId,
             title: payload.title,
-            model: payload.model,
+            modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
             branch: payload.branch,
@@ -260,6 +271,7 @@ export function projectEvent(
             latestTurn: null,
             createdAt: payload.createdAt,
             updatedAt: payload.updatedAt,
+            archivedAt: null,
             deletedAt: null,
             messages: [],
             activities: [],
@@ -289,13 +301,37 @@ export function projectEvent(
         })),
       );
 
+    case "thread.archived":
+      return decodeForEvent(ThreadArchivedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            archivedAt: payload.archivedAt,
+            updatedAt: payload.updatedAt,
+          }),
+        })),
+      );
+
+    case "thread.unarchived":
+      return decodeForEvent(ThreadUnarchivedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            archivedAt: null,
+            updatedAt: payload.updatedAt,
+          }),
+        })),
+      );
+
     case "thread.meta-updated":
       return decodeForEvent(ThreadMetaUpdatedPayload, event.payload, event.type, "payload").pipe(
         Effect.map((payload) => ({
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             ...(payload.title !== undefined ? { title: payload.title } : {}),
-            ...(payload.model !== undefined ? { model: payload.model } : {}),
+            ...(payload.modelSelection !== undefined
+              ? { modelSelection: payload.modelSelection }
+              : {}),
             ...(payload.branch !== undefined ? { branch: payload.branch } : {}),
             ...(payload.worktreePath !== undefined ? { worktreePath: payload.worktreePath } : {}),
             updatedAt: payload.updatedAt,
@@ -619,6 +655,74 @@ export function projectEvent(
             }),
           };
         }),
+      );
+
+    case "task.created":
+      return decodeForEvent(TaskCreatedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => {
+          const existing = nextBase.tasks.find((entry) => entry.id === payload.taskId);
+          const nextTask: OrchestrationTask = {
+            id: payload.taskId,
+            projectId: payload.projectId,
+            title: payload.title,
+            description: payload.description,
+            status: payload.status,
+            priority: payload.priority,
+            dueDate: payload.dueDate,
+            createdAt: payload.createdAt,
+            updatedAt: payload.updatedAt,
+            completedAt: null,
+            deletedAt: null,
+          };
+
+          return {
+            ...nextBase,
+            tasks: existing
+              ? nextBase.tasks.map((entry) => (entry.id === payload.taskId ? nextTask : entry))
+              : [...nextBase.tasks, nextTask],
+          };
+        }),
+      );
+
+    case "task.updated":
+      return decodeForEvent(TaskUpdatedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          tasks: nextBase.tasks.map((task) =>
+            task.id === payload.taskId
+              ? {
+                  ...task,
+                  ...(payload.title !== undefined ? { title: payload.title } : {}),
+                  ...(payload.description !== undefined
+                    ? { description: payload.description }
+                    : {}),
+                  ...(payload.status !== undefined ? { status: payload.status } : {}),
+                  ...(payload.priority !== undefined ? { priority: payload.priority } : {}),
+                  ...(payload.dueDate !== undefined ? { dueDate: payload.dueDate } : {}),
+                  ...(payload.completedAt !== undefined
+                    ? { completedAt: payload.completedAt }
+                    : {}),
+                  updatedAt: payload.updatedAt,
+                }
+              : task,
+          ),
+        })),
+      );
+
+    case "task.deleted":
+      return decodeForEvent(TaskDeletedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          tasks: nextBase.tasks.map((task) =>
+            task.id === payload.taskId
+              ? {
+                  ...task,
+                  deletedAt: payload.deletedAt,
+                  updatedAt: payload.deletedAt,
+                }
+              : task,
+          ),
+        })),
       );
 
     default:

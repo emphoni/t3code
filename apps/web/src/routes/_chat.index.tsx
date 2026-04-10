@@ -22,8 +22,9 @@ function ChatIndexRouteView() {
       )}
 
       <div className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm">Select a thread or create a new one to get started.</p>
+        <div className="-mt-16 flex flex-col items-center gap-12 text-center">
+          <img src="/empty-state.svg" alt="" className="mx-auto -ml-4 w-72 opacity-60" />
+          <p className="mx-auto text-xl text-muted-foreground/60">Select a thread or create a new one to get started.</p>
         </div>
       </div>
     </div>

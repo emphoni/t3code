@@ -9,12 +9,18 @@ const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
+const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
-const wsUrl = process.env.T3CODE_DESKTOP_WS_URL ?? null;
+const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const FULLSCREEN_CHANGE_CHANNEL = "desktop:fullscreen-change";
+const IS_FULLSCREEN_CHANNEL = "desktop:is-fullscreen";
 
 contextBridge.exposeInMainWorld("desktopBridge", {
-  getWsUrl: () => wsUrl,
+  getWsUrl: () => {
+    const result = ipcRenderer.sendSync(GET_WS_URL_CHANNEL);
+    return typeof result === "string" ? result : null;
+  },
   pickFolder: () => ipcRenderer.invoke(PICK_FOLDER_CHANNEL),
   confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),
   setTheme: (theme) => ipcRenderer.invoke(SET_THEME_CHANNEL, theme),
@@ -32,6 +38,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     };
   },
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
+  checkForUpdate: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
   installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),
   onUpdateState: (listener) => {
@@ -43,6 +50,21 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.on(UPDATE_STATE_CHANNEL, wrappedListener);
     return () => {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
+    };
+  },
+  isFullscreen: () => {
+    const result = ipcRenderer.sendSync(IS_FULLSCREEN_CHANNEL);
+    return typeof result === "boolean" ? result : false;
+  },
+  onFullscreenChange: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, isFullscreen: unknown) => {
+      if (typeof isFullscreen !== "boolean") return;
+      listener(isFullscreen);
+    };
+
+    ipcRenderer.on(FULLSCREEN_CHANGE_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(FULLSCREEN_CHANGE_CHANNEL, wrappedListener);
     };
   },
 } satisfies DesktopBridge);

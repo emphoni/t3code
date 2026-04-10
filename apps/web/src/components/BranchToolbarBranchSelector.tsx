@@ -20,6 +20,7 @@ import {
   gitStatusQueryOptions,
   invalidateGitQueries,
 } from "../lib/gitReactQuery";
+import { cn } from "~/lib/utils";
 import { readNativeApi } from "../nativeApi";
 import { parsePullRequestReference } from "../pullRequestReference";
 import {
@@ -28,6 +29,7 @@ import {
   EnvMode,
   resolveBranchSelectionTarget,
   resolveBranchToolbarValue,
+  shouldIncludeBranchPickerItem,
 } from "./BranchToolbar.logic";
 import { Button } from "./ui/button";
 import {
@@ -134,11 +136,20 @@ export function BranchToolbarBranchSelector({
     () =>
       normalizedDeferredBranchQuery.length === 0
         ? branchPickerItems
-        : branchPickerItems.filter((itemValue) => {
-            if (createBranchItemValue && itemValue === createBranchItemValue) return true;
-            return itemValue.toLowerCase().includes(normalizedDeferredBranchQuery);
-          }),
-    [branchPickerItems, createBranchItemValue, normalizedDeferredBranchQuery],
+        : branchPickerItems.filter((itemValue) =>
+            shouldIncludeBranchPickerItem({
+              itemValue,
+              normalizedQuery: normalizedDeferredBranchQuery,
+              createBranchItemValue,
+              checkoutPullRequestItemValue,
+            }),
+          ),
+    [
+      branchPickerItems,
+      checkoutPullRequestItemValue,
+      createBranchItemValue,
+      normalizedDeferredBranchQuery,
+    ],
   );
   const [resolvedActiveBranch, setOptimisticBranch] = useOptimistic(
     canonicalActiveBranch,
@@ -387,7 +398,7 @@ export function BranchToolbarBranchSelector({
         key={itemValue}
         index={index}
         value={itemValue}
-        className={itemValue === resolvedActiveBranch ? "bg-accent text-foreground" : undefined}
+        className={cn("!py-2", itemValue === resolvedActiveBranch && "bg-accent text-foreground")}
         style={style}
         onClick={() => selectBranch(branch)}
       >
@@ -424,7 +435,7 @@ export function BranchToolbarBranchSelector({
       <ComboboxPopup align="end" side="top" className="w-80">
         <div className="border-b p-1">
           <ComboboxInput
-            className="[&_input]:font-sans rounded-md"
+            className="rounded-md [&_input]:!font-sans"
             inputClassName="ring-0"
             placeholder="Search branches..."
             showTrigger={false}

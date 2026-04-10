@@ -3,7 +3,13 @@ import { FileDiff, type FileDiffMetadata, Virtualizer } from "@pierre/diffs/reac
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ThreadId, type TurnId } from "@t3tools/contracts";
-import { ChevronLeftIcon, ChevronRightIcon, Columns2Icon, Rows3Icon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  Columns2Icon,
+  Rows3Icon,
+  TextWrapIcon,
+} from "lucide-react";
 import {
   type WheelEvent as ReactWheelEvent,
   useCallback,
@@ -24,7 +30,7 @@ import { buildPatchCacheKey } from "../lib/diffRendering";
 import { resolveDiffThemeName } from "../lib/diffRendering";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
 import { useStore } from "../store";
-import { useAppSettings } from "../appSettings";
+import { useSettings } from "../hooks/useSettings";
 import { formatShortTimestamp } from "../timestampFormat";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
@@ -94,6 +100,10 @@ const DIFF_PANEL_UNSAFE_CSS = `
   color: color-mix(in srgb, var(--foreground) 84%, var(--primary)) !important;
   text-decoration-color: currentColor;
 }
+
+[data-separator='line-info']:first-child {
+  margin-block-start: 8px !important;
+}
 `;
 
 type RenderablePatch =
@@ -160,10 +170,12 @@ export { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";
 export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const navigate = useNavigate();
   const { resolvedTheme } = useTheme();
-  const { settings } = useAppSettings();
+  const settings = useSettings();
   const [diffRenderMode, setDiffRenderMode] = useState<DiffRenderMode>("stacked");
+  const [diffWordWrap, setDiffWordWrap] = useState(settings.diffWordWrap);
   const patchViewportRef = useRef<HTMLDivElement>(null);
   const turnStripRef = useRef<HTMLDivElement>(null);
+  const previousDiffOpenRef = useRef(false);
   const [canScrollTurnStripLeft, setCanScrollTurnStripLeft] = useState(false);
   const [canScrollTurnStripRight, setCanScrollTurnStripRight] = useState(false);
   const routeThreadId = useParams({
@@ -171,6 +183,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     select: (params) => (params.threadId ? ThreadId.makeUnsafe(params.threadId) : null),
   });
   const diffSearch = useSearch({ strict: false, select: (search) => parseDiffRouteSearch(search) });
+  const diffOpen = diffSearch.diff === "1";
   const activeThreadId = routeThreadId;
   const activeThread = useStore((store) =>
     activeThreadId ? store.threads.find((thread) => thread.id === activeThreadId) : undefined,
@@ -294,6 +307,13 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   }, [renderablePatch]);
 
   useEffect(() => {
+    if (diffOpen && !previousDiffOpenRef.current) {
+      setDiffWordWrap(settings.diffWordWrap);
+    }
+    previousDiffOpenRef.current = diffOpen;
+  }, [diffOpen, settings.diffWordWrap]);
+
+  useEffect(() => {
     if (!selectedFilePath || !patchViewportRef.current) {
       return;
     }
@@ -402,10 +422,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     <>
       <div className="relative min-w-0 flex-1 [-webkit-app-region:no-drag]">
         {canScrollTurnStripLeft && (
-          <div className="pointer-events-none absolute inset-y-0 left-8 z-10 w-7 bg-linear-to-r from-card to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-14 bg-linear-to-r from-background from-50% to-transparent" />
         )}
         {canScrollTurnStripRight && (
-          <div className="pointer-events-none absolute inset-y-0 right-8 z-10 w-7 bg-linear-to-l from-card to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-14 bg-linear-to-l from-background from-50% to-transparent" />
         )}
         <button
           type="button"
@@ -490,25 +510,39 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           ))}
         </div>
       </div>
-      <ToggleGroup
-        className="shrink-0 [-webkit-app-region:no-drag]"
-        variant="outline"
-        size="xs"
-        value={[diffRenderMode]}
-        onValueChange={(value) => {
-          const next = value[0];
-          if (next === "stacked" || next === "split") {
-            setDiffRenderMode(next);
-          }
-        }}
-      >
-        <Toggle aria-label="Stacked diff view" value="stacked">
-          <Rows3Icon className="size-3" />
+      <div className="flex shrink-0 items-center gap-1 [-webkit-app-region:no-drag]">
+        <ToggleGroup
+          className="shrink-0"
+          variant="outline"
+          size="xs"
+          value={[diffRenderMode]}
+          onValueChange={(value) => {
+            const next = value[0];
+            if (next === "stacked" || next === "split") {
+              setDiffRenderMode(next);
+            }
+          }}
+        >
+          <Toggle aria-label="Stacked diff view" value="stacked">
+            <Rows3Icon className="size-3" />
+          </Toggle>
+          <Toggle aria-label="Split diff view" value="split">
+            <Columns2Icon className="size-3" />
+          </Toggle>
+        </ToggleGroup>
+        <Toggle
+          aria-label={diffWordWrap ? "Disable diff line wrapping" : "Enable diff line wrapping"}
+          title={diffWordWrap ? "Disable line wrapping" : "Enable line wrapping"}
+          variant="outline"
+          size="xs"
+          pressed={diffWordWrap}
+          onPressedChange={(pressed) => {
+            setDiffWordWrap(Boolean(pressed));
+          }}
+        >
+          <TextWrapIcon className="size-3" />
         </Toggle>
-        <Toggle aria-label="Split diff view" value="split">
-          <Columns2Icon className="size-3" />
-        </Toggle>
-      </ToggleGroup>
+      </div>
     </>
   );
 
@@ -582,6 +616,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                         options={{
                           diffStyle: diffRenderMode === "split" ? "split" : "unified",
                           lineDiffType: "none",
+                          overflow: diffWordWrap ? "wrap" : "scroll",
                           theme: resolveDiffThemeName(resolvedTheme),
                           themeType: resolvedTheme as DiffThemeType,
                           unsafeCSS: DIFF_PANEL_UNSAFE_CSS,
@@ -595,7 +630,14 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
               <div className="h-full overflow-auto p-2">
                 <div className="space-y-2">
                   <p className="text-[11px] text-muted-foreground/75">{renderablePatch.reason}</p>
-                  <pre className="max-h-[72vh] overflow-auto rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
+                  <pre
+                    className={cn(
+                      "max-h-[72vh] rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90",
+                      diffWordWrap
+                        ? "overflow-auto whitespace-pre-wrap wrap-break-word"
+                        : "overflow-auto",
+                    )}
+                  >
                     {renderablePatch.text}
                   </pre>
                 </div>
